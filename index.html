@@ -1279,15 +1279,37 @@
             // Salva no Firestore
             db.collection('tasks').add(taskData)
                 .then(docRef => {
-                    alert('Tarefa criada com sucesso!');
-                    // Limpa o formulário
-                    document.getElementById('task-title').value = '';
-                    document.getElementById('task-description').value = '';
-                    document.getElementById('audio-file').value = '';
-                    document.getElementById('audio-preview').style.display = 'none';
-                    
-                    // Recarrega as tarefas
-                    loadTasks();
+  // Salva uma cópia para cada aluno selecionado
+                    const savePromises = recipients.map(email => {
+                        return db.collection('users')
+                            .where('email', '==', email)
+                            .get()
+                            .then(qs => {
+                                const userPromises = [];
+                                qs.forEach(userDoc => {
+                                    userPromises.push(
+                                        db.collection('users')
+                                            .doc(userDoc.id)
+                                            .collection('tasks')
+                                            .doc(docRef.id)
+                                            .set(taskData)
+                                    );
+                                });
+                                return Promise.all(userPromises);
+                            });
+                    });
+
+                    Promise.all(savePromises).then(() => {
+                        alert('Tarefa criada com sucesso!');
+                        // Limpa o formulário
+                        document.getElementById('task-title').value = '';
+                        document.getElementById('task-description').value = '';
+                        document.getElementById('audio-file').value = '';
+                        document.getElementById('audio-preview').style.display = 'none';
+
+                        // Recarrega as tarefas
+                        loadTasks();
+                    });
                 })
                 .catch(error => {
                     console.error('Erro ao criar tarefa:', error);
@@ -1328,14 +1350,36 @@
             };
             
             db.collection('tips').add(tipData)
-                .then(() => {
-                    alert('Dica adicionada com sucesso!');
-                    // Limpa o formulário
-                    document.getElementById('tip-title').value = '';
-                    document.getElementById('tip-content').value = '';
-                    
-                    // Recarrega as dicas
-                    loadTips();
+     .then(docRef => {
+                    // Salva uma cópia para cada aluno selecionado
+                    const savePromises = recipients.map(email => {
+                        return db.collection('users')
+                            .where('email', '==', email)
+                            .get()
+                            .then(qs => {
+                                const userPromises = [];
+                                qs.forEach(userDoc => {
+                                    userPromises.push(
+                                        db.collection('users')
+                                            .doc(userDoc.id)
+                                            .collection('tips')
+                                            .doc(docRef.id)
+                                            .set(tipData)
+                                    );
+                                });
+                                return Promise.all(userPromises);
+                            });
+                    });
+
+                    Promise.all(savePromises).then(() => {
+                        alert('Dica adicionada com sucesso!');
+                        // Limpa o formulário
+                        document.getElementById('tip-title').value = '';
+                        document.getElementById('tip-content').value = '';
+
+                        // Recarrega as dicas
+                        loadTips();
+                    });
                 })
                 .catch(error => {
                     console.error('Erro ao adicionar dica:', error);
@@ -1423,9 +1467,10 @@
                     .where('createdBy', '==', currentUser.uid)
                     .orderBy('createdAt', 'desc');
             } else {
-                // Aluno vê tarefas em que é destinatário
-                query = db.collection('tasks')
-                    .where('recipients', 'array-contains', currentUser.email)
+       // Aluno vê tarefas em sua própria coleção
+                query = db.collection('users')
+                    .doc(currentUser.uid)
+                    .collection('tasks')
                     .orderBy('createdAt', 'desc');
             }
             
@@ -1648,9 +1693,10 @@
                     .where('createdBy', '==', currentUser.uid)
                     .orderBy('createdAt', 'desc');
             } else {
-                // Aluno vê dicas em que é destinatário
-                query = db.collection('tips')
-                    .where('recipients', 'array-contains', currentUser.email)
+  // Aluno vê dicas em sua própria coleção
+                query = db.collection('users')
+                    .doc(currentUser.uid)
+                    .collection('tips')
                     .orderBy('createdAt', 'desc');
             }
             
