@@ -143,6 +143,15 @@
             color: white;
         }
         
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #aa00ff;
+            color: white;
+        }
         .card {
             background: white;
             border-radius: 12px;
@@ -464,6 +473,17 @@
             margin-right: 12px;
         }
         
+        .student-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .student-item:last-child {
+            border-bottom: none;
+        }
         .question-form {
             background: white;
             border-radius: 12px;
@@ -578,7 +598,7 @@
                     <ul>
                         <li><a href="#" class="nav-link active" data-tab="tasks">Tarefas</a></li>
                         <li><a href="#" class="nav-link" data-tab="tips">Dicas</a></li>
-                        <li><a href="#" class="nav-link" data-tab="help">Dúvidas</a></li>
+                        <li id="nav-users" class="hidden"><a href="#" class="nav-link" data-tab="users">Usuários</a></li>
                     </ul>
                 </nav>
                 <div class="user-info">
@@ -801,7 +821,33 @@
                 </div>
             </div>
         </div>
+           <!-- Aba de Usuários -->
+        <div id="users-tab" class="tab-container">
+            <div class="card">
+                <div class="card-header">Registrar Novo Aluno</div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label for="new-student-email">Email do Aluno</label>
+                        <input type="email" id="new-student-email" class="form-control" placeholder="aluno@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-student-password">Senha</label>
+                        <input type="password" id="new-student-password" class="form-control" placeholder="Senha inicial">
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button id="register-student-btn" class="btn btn-accent">Registrar</button>
+                </div>
+            </div>
+            <div class="card" style="margin-top:25px;">
+                <div class="card-header">Alunos Registrados</div>
+                <div class="card-body" id="students-list">
+                    <p>Carregando alunos...</p>
+                </div>
+            </div>
+        </div>
     </div>
+</div>
 
     <!-- Modal para resposta de tarefa -->
     <div id="response-modal" class="modal">
@@ -865,12 +911,11 @@
                     loginScreen.classList.add('hidden');
                     mainContent.classList.remove('hidden');
                     
-                    // Atualizar ou criar o usuário no Firestore
-                    updateUserInFirestore(user);
-                    
-                    // Carregar lista de alunos (apenas para professores)
-                    if (userRole === 'teacher') {
+                  
+                        document.getElementById('nav-users').classList.remove('hidden');
                         loadStudents();
+                    } else {
+                        document.getElementById('nav-users').classList.add('hidden');
                     }
                     
                     // Mostrar o painel correto conforme o tipo de usuário
@@ -885,6 +930,8 @@
                     currentUser = null;
                     loginScreen.classList.remove('hidden');
                     mainContent.classList.add('hidden');
+                                    document.getElementById('nav-users').classList.add('hidden');
+
                 }
             });
             
@@ -938,6 +985,9 @@
                 document.getElementById('send-question-btn').addEventListener('click', sendQuestion);
             }
             
+            if (document.getElementById('register-student-btn')) {
+                document.getElementById('register-student-btn').addEventListener('click', registerStudent);
+            }
             // Configura o upload de áudio
             const audioUploadArea = document.getElementById('audio-upload-area');
             if (audioUploadArea) {
@@ -960,20 +1010,7 @@
             });
         }
         
-        // Atualiza ou cria o usuário no Firestore
-        function updateUserInFirestore(user) {
-            const userRef = db.collection('users').doc(user.uid);
-            userRef.get().then(doc => {
-                if (!doc.exists) {
-                    // Cria o usuário se não existir
-                    userRef.set({
-                        email: user.email,
-                        role: userRole,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                }
-            });
-        }
+    
         
         // Carrega a lista de alunos (para professores)
         function loadStudents() {
@@ -984,13 +1021,16 @@
                     studentsList = [];
                     const taskRecipientsContainer = document.getElementById('task-recipients');
                     const tipRecipientsContainer = document.getElementById('tip-recipients');
-                    
-                    taskRecipientsContainer.innerHTML = '';
-                    tipRecipientsContainer.innerHTML = '';
+                     const studentsListContainer = document.getElementById('students-list');
+
+                    if (taskRecipientsContainer) taskRecipientsContainer.innerHTML = '';
+                    if (tipRecipientsContainer) tipRecipientsContainer.innerHTML = '';
+                    if (studentsListContainer) studentsListContainer.innerHTML = '';
                     
                     if (querySnapshot.empty) {
-                        taskRecipientsContainer.innerHTML = '<p>Nenhum aluno cadastrado ainda.</p>';
-                        tipRecipientsContainer.innerHTML = '<p>Nenhum aluno cadastrado ainda.</p>';
+   if (taskRecipientsContainer) taskRecipientsContainer.innerHTML = '<p>Nenhum aluno cadastrado ainda.</p>';
+                        if (tipRecipientsContainer) tipRecipientsContainer.innerHTML = '<p>Nenhum aluno cadastrado ainda.</p>';
+                        if (studentsListContainer) studentsListContainer.innerHTML = '<p>Nenhum aluno cadastrado ainda.</p>';
                         return;
                     }
                     
@@ -998,26 +1038,105 @@
                         const student = doc.data();
                         studentsList.push(student.email);
                         
-                        // Adiciona checkbox para tarefas
-                        const taskRecipientItem = document.createElement('div');
-                        taskRecipientItem.className = 'recipient-item';
-                        taskRecipientItem.innerHTML = `
-                            <input type="checkbox" id="task-${doc.id}" value="${student.email}">
-                            <label for="task-${doc.id}">${student.email}</label>
-                        `;
-                        taskRecipientsContainer.appendChild(taskRecipientItem);
-                        
-                        // Adiciona checkbox para dicas
-                        const tipRecipientItem = taskRecipientItem.cloneNode(true);
-                        tipRecipientItem.innerHTML = `
-                            <input type="checkbox" id="tip-${doc.id}" value="${student.email}">
-                            <label for="tip-${doc.id}">${student.email}</label>
-                        `;
-                        tipRecipientsContainer.appendChild(tipRecipientItem);
+
+                        if (taskRecipientsContainer) {
+                            const taskRecipientItem = document.createElement('div');
+                            taskRecipientItem.className = 'recipient-item';
+                            taskRecipientItem.innerHTML = `
+                                <input type="checkbox" id="task-${doc.id}" value="${student.email}">
+                                <label for="task-${doc.id}">${student.email}</label>
+                            `;
+                            taskRecipientsContainer.appendChild(taskRecipientItem);
+                        }
+
+                        if (tipRecipientsContainer) {
+                            const tipRecipientItem = document.createElement('div');
+                            tipRecipientItem.className = 'recipient-item';
+                            tipRecipientItem.innerHTML = `
+                                <input type="checkbox" id="tip-${doc.id}" value="${student.email}">
+                                <label for="tip-${doc.id}">${student.email}</label>
+                            `;
+                            tipRecipientsContainer.appendChild(tipRecipientItem);
+                        }
+
+                        if (studentsListContainer) {
+                            const studentItem = document.createElement('div');
+                            studentItem.className = 'student-item';
+                            studentItem.innerHTML = `
+                                <span>${student.email}</span>
+                                <div>
+                                    <button class="btn btn-outline" onclick="editStudent('${doc.id}', '${student.email}')">Editar</button>
+                                    <button class="btn btn-danger" style="margin-left:5px" onclick="deleteStudent('${doc.id}')">Excluir</button>
+                                </div>
+                            `;
+                            studentsListContainer.appendChild(studentItem);
+                        }
                     });
                 })
                 .catch(error => {
                     console.error('Erro ao carregar alunos:', error);
+                });
+        }
+
+        function registerStudent() {
+            const email = document.getElementById('new-student-email').value;
+            const password = document.getElementById('new-student-password').value;
+
+            if (!email || !password) {
+                alert('Preencha email e senha');
+                return;
+            }
+
+            const secondaryApp = firebase.apps.find(a => a.name === 'Secondary') || firebase.initializeApp(firebaseConfig, 'Secondary');
+            secondaryApp.auth().createUserWithEmailAndPassword(email, password)
+                .then(userCredential => {
+                    return db.collection('users').doc(userCredential.user.uid).set({
+                        email: email,
+                        role: 'student',
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                })
+                .then(() => {
+                    alert('Aluno registrado com sucesso!');
+                    document.getElementById('new-student-email').value = '';
+                    document.getElementById('new-student-password').value = '';
+                    loadStudents();
+                })
+                .catch(error => {
+                    console.error('Erro ao registrar aluno:', error);
+                    alert('Erro ao registrar aluno.');
+                })
+                .finally(() => {
+                    secondaryApp.auth().signOut();
+                });
+        }
+
+        function editStudent(uid, currentEmail) {
+            const newEmail = prompt('Novo email do aluno:', currentEmail);
+            if (!newEmail || newEmail === currentEmail) return;
+
+            db.collection('users').doc(uid).update({ email: newEmail })
+                .then(() => {
+                    alert('Email atualizado.');
+                    loadStudents();
+                })
+                .catch(error => {
+                    console.error('Erro ao atualizar email:', error);
+                    alert('Erro ao atualizar email.');
+                });
+        }
+
+        function deleteStudent(uid) {
+            if (!confirm('Tem certeza que deseja excluir este aluno?')) return;
+
+            db.collection('users').doc(uid).delete()
+                .then(() => {
+                    alert('Aluno excluído.');
+                    loadStudents();
+                })
+                .catch(error => {
+                    console.error('Erro ao excluir aluno:', error);
+                    alert('Erro ao excluir aluno.');
                 });
         }
         
@@ -1036,13 +1155,13 @@
             
             auth.signInWithEmailAndPassword(email, password)
                 .then(userCredential => {
-                    // Login bem-sucedido
-                    showAlert('Login realizado com sucesso!', 'success');
+ return db.collection('users').doc(userCredential.user.uid).get();
+                })
+                .then(doc => {
                     loginBtn.innerHTML = 'Entrar';
                     loginBtn.disabled = false;
                 })
                 .catch(error => {
-                    // Tratamento de erros
                     let errorMessage = 'Erro ao fazer login.';
                     
                     switch (error.code) {
