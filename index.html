@@ -903,24 +903,33 @@
         // Função para inicializar a aplicação
         function initApp() {
             // Verifica estado de autenticação
-            auth.onAuthStateChanged(user => {
+            auth.onAuthStateChanged(async user => {
                 if (user) {
                     // Usuário autenticado
                     currentUser = user;
                     userEmail.textContent = user.email;
                     loginScreen.classList.add('hidden');
                     mainContent.classList.remove('hidden');
-                    
-                  
+
+                    // Obtém papel do usuário
+                    try {
+                        const doc = await db.collection('users').doc(user.uid).get();
+                        userRole = doc.exists ? doc.data().role : 'student';
+                    } catch (err) {
+                        console.error('Erro ao carregar dados do usuário:', err);
+                        userRole = 'student';
+                    }
+
+                    if (userRole === 'teacher') {
                         document.getElementById('nav-users').classList.remove('hidden');
                         loadStudents();
                     } else {
                         document.getElementById('nav-users').classList.add('hidden');
                     }
-                    
+
                     // Mostrar o painel correto conforme o tipo de usuário
                     showUserPanel();
-                    
+
                     // Carregar dados iniciais
                     loadTasks();
                     loadTips();
@@ -930,8 +939,7 @@
                     currentUser = null;
                     loginScreen.classList.remove('hidden');
                     mainContent.classList.add('hidden');
-                                    document.getElementById('nav-users').classList.add('hidden');
-
+                    document.getElementById('nav-users').classList.add('hidden');
                 }
             });
             
@@ -1141,45 +1149,52 @@
         }
         
         // Função para autenticar o usuário
-        function signIn() {
+        async function signIn() {
             const email = loginEmail.value;
             const password = loginPassword.value;
-            
+
             if (!email || !password) {
                 showAlert('Por favor, preencha todos os campos', 'error');
                 return;
             }
-            
+
             loginBtn.innerHTML = '<div class="loader"></div> Entrando...';
             loginBtn.disabled = true;
-            
-            auth.signInWithEmailAndPassword(email, password)
-                .then(userCredential => {
- return db.collection('users').doc(userCredential.user.uid).get();
-                })
-                .then(doc => {
-                    loginBtn.innerHTML = 'Entrar';
-                    loginBtn.disabled = false;
-                })
-                .catch(error => {
-                    let errorMessage = 'Erro ao fazer login.';
-                    
-                    switch (error.code) {
-                        case 'auth/user-not-found':
-                            errorMessage = 'Usuário não encontrado.';
-                            break;
-                        case 'auth/wrong-password':
-                            errorMessage = 'Senha incorreta.';
-                            break;
-                        case 'auth/invalid-email':
-                            errorMessage = 'Email inválido.';
-                            break;
-                    }
-                    
-                    showAlert(errorMessage, 'error');
-                    loginBtn.innerHTML = 'Entrar';
-                    loginBtn.disabled = false;
-                });
+
+            try {
+                const userCredential = await auth.signInWithEmailAndPassword(email, password);
+                const doc = await db.collection('users').doc(userCredential.user.uid).get();
+                const data = doc.data() || {};
+                const selectedRole = document.querySelector('.role-option.active')?.dataset.role;
+
+                userRole = data.role || 'student';
+
+                if (selectedRole && selectedRole !== userRole) {
+                    await auth.signOut();
+                    showAlert('Tipo de usuário incorreto.', 'error');
+                }
+
+                loginBtn.innerHTML = 'Entrar';
+                loginBtn.disabled = false;
+            } catch (error) {
+                let errorMessage = 'Erro ao fazer login.';
+
+                switch (error.code) {
+                    case 'auth/user-not-found':
+                        errorMessage = 'Usuário não encontrado.';
+                        break;
+                    case 'auth/wrong-password':
+                        errorMessage = 'Senha incorreta.';
+                        break;
+                    case 'auth/invalid-email':
+                        errorMessage = 'Email inválido.';
+                        break;
+                }
+
+                showAlert(errorMessage, 'error');
+                loginBtn.innerHTML = 'Entrar';
+                loginBtn.disabled = false;
+            }
         }
         
         // Função para fazer logout
